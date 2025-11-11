@@ -1,0 +1,25 @@
+# FastAPI / Server
+fastapi
+uvicorn[standard]
+
+# LangChain Core
+langchain
+langchain-openai
+
+# Environment
+python-dotenv
+
+# Data/Time series
+pandas
+numpy
+scipy
+statsmodels
+prophet
+
+# Optional DB
+sqlalchemy
+psycopg2-binary
+
+# Utils
+pydantic
+requests
