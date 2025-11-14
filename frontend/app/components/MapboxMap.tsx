@@ -276,7 +276,103 @@ export default function MapboxMap({ geoJson }: MapboxMapProps) {
         });
       };
 
+      // 좌표로 지역 검색 시 하이라이트 이벤트 리스너
+      const handleHighlightRegion = (event: any) => {
+        const { coordinates, region } = event.detail;
+
+        // 기존 하이라이트 제거
+        if (mapInstance.getLayer("highlighted-region-fill")) {
+          mapInstance.removeLayer("highlighted-region-fill");
+        }
+        if (mapInstance.getLayer("highlighted-region-line")) {
+          mapInstance.removeLayer("highlighted-region-line");
+        }
+        if (mapInstance.getSource("highlighted-region")) {
+          mapInstance.removeSource("highlighted-region");
+        }
+
+        // 새 하이라이트 레이어 추가
+        if (region && region.feature) {
+          mapInstance.addSource("highlighted-region", {
+            type: "geojson",
+            data: region.feature,
+          });
+
+          // 채우기 레이어
+          mapInstance.addLayer({
+            id: "highlighted-region-fill",
+            type: "fill",
+            source: "highlighted-region",
+            paint: {
+              "fill-color": "#3b82f6", // 파란색
+              "fill-opacity": 0.3,
+            },
+          });
+
+          // 경계선 레이어
+          mapInstance.addLayer({
+            id: "highlighted-region-line",
+            type: "line",
+            source: "highlighted-region",
+            paint: {
+              "line-color": "#2563eb", // 진한 파란색
+              "line-width": 3,
+            },
+          });
+
+          // 해당 지역으로 줌인
+          const bounds = new mapboxgl.LngLatBounds();
+          const geometry = region.feature.geometry;
+
+          if (geometry.type === "Polygon") {
+            geometry.coordinates[0].forEach((coord: any) => {
+              bounds.extend(coord as [number, number]);
+            });
+          } else if (geometry.type === "MultiPolygon") {
+            geometry.coordinates.forEach((polygon: any) => {
+              polygon[0].forEach((coord: any) => {
+                bounds.extend(coord as [number, number]);
+              });
+            });
+          }
+
+          mapInstance.fitBounds(bounds, {
+            padding: 100,
+            maxZoom: 14,
+            duration: 2000,
+          });
+
+          // 마커 추가
+          new mapboxgl.Marker({ color: "#ef4444" }) // 빨간색 마커
+            .setLngLat(coordinates)
+            .setPopup(
+              new mapboxgl.Popup({ offset: 25 }).setHTML(
+                `<div style="font-family: sans-serif; padding: 12px; background: white; border-radius: 8px;">
+                  <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: bold; color: #2563eb;">📍 검색 위치</h3>
+                  <div style="font-size: 12px; color: #334155;">
+                    <p style="margin: 4px 0;"><strong>광역시/도:</strong> ${region.sidonm}</p>
+                    <p style="margin: 4px 0;"><strong>시군구:</strong> ${region.sggnm}</p>
+                    <p style="margin: 4px 0;"><strong>읍면동:</strong> ${region.adm_nm}</p>
+                    <p style="margin: 8px 0 0 0; font-size: 11px; color: #64748b;">
+                      좌표: ${coordinates[1].toFixed(6)}, ${coordinates[0].toFixed(6)}
+                    </p>
+                  </div>
+                </div>`
+              )
+            )
+            .addTo(mapInstance)
+            .togglePopup(); // 자동으로 팝업 열기
+        }
+      };
+
       window.addEventListener("flyToDataCenter", handleFlyToDataCenter);
+      window.addEventListener("highlightRegion", handleHighlightRegion);
+
+      // 클린업 시 이벤트 리스너 제거
+      return () => {
+        window.removeEventListener("flyToDataCenter", handleFlyToDataCenter);
+        window.removeEventListener("highlightRegion", handleHighlightRegion);
+      };
     });
 
     // 네비게이션 컨트롤 추가

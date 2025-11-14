@@ -7,8 +7,31 @@ import MapboxMap from "./components/MapboxMap";
 // Map 컴포넌트를 동적으로 로드 (SSR 방지)
 const Map = dynamic(() => import("./Map"), { ssr: false });
 
+interface GeoJsonFeature {
+  type: string;
+  properties: {
+    sidonm?: string;
+    sggnm?: string;
+    adm_nm?: string;
+  };
+  geometry: {
+    type: string;
+    coordinates: any;
+  };
+}
+
+interface GeoJsonData {
+  type: string;
+  features: GeoJsonFeature[];
+}
+
 export default function Page() {
-  const [geoJson, setGeoJson] = useState(null);
+  const [geoJson, setGeoJson] = useState<GeoJsonData | null>(null);
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
+  const [address, setAddress] = useState("");
+  const [selectedRegion, setSelectedRegion] = useState<any>(null);
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
 
   useEffect(() => {
     // GeoJSON 데이터 로드
@@ -17,6 +40,156 @@ export default function Page() {
       .then((data) => setGeoJson(data))
       .catch((err) => console.error("GeoJSON 로드 실패:", err));
   }, []);
+
+  // Point-in-Polygon 역지오코딩 함수
+  const findRegionByCoordinates = (lng: number, lat: number) => {
+    if (!geoJson || !geoJson.features) {
+      alert("GeoJSON 데이터가 아직 로드되지 않았습니다.");
+      return null;
+    }
+
+    // GeoJSON의 모든 feature를 순회하며 좌표가 포함되는 지역 찾기
+    for (const feature of geoJson.features) {
+      if (isPointInFeature([lng, lat], feature)) {
+        return {
+          sidonm: feature.properties.sidonm || "정보 없음",
+          sggnm: feature.properties.sggnm || "정보 없음",
+          adm_nm: feature.properties.adm_nm || "정보 없음",
+          feature: feature,
+        };
+      }
+    }
+
+    return null;
+  };
+
+  // Point-in-Polygon 알고리즘 (Ray Casting)
+  const isPointInPolygon = (point: [number, number], polygon: any) => {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i][0],
+        yi = polygon[i][1];
+      const xj = polygon[j][0],
+        yj = polygon[j][1];
+
+      const intersect =
+        yi > point[1] !== yj > point[1] &&
+        point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi;
+
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  };
+
+  // Feature(Polygon 또는 MultiPolygon)에 점이 포함되는지 확인
+  const isPointInFeature = (point: [number, number], feature: any) => {
+    const geometry = feature.geometry;
+
+    if (geometry.type === "Polygon") {
+      // Polygon의 첫 번째 링(외곽선)에서 확인
+      return isPointInPolygon(point, geometry.coordinates[0]);
+    } else if (geometry.type === "MultiPolygon") {
+      // MultiPolygon의 각 Polygon을 확인
+      for (const polygon of geometry.coordinates) {
+        if (isPointInPolygon(point, polygon[0])) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
+
+  // 도로명 주소를 위도/경도로 변환 (Vworld Geocoding API)
+  const geocodeAddress = async (addressQuery: string) => {
+    setIsLoadingAddress(true);
+    try {
+      // Vworld Geocoding API 사용 (무료)
+      const apiKey = process.env.NEXT_PUBLIC_VWORLD_API_KEY || "YOUR_API_KEY";
+      const encodedAddress = encodeURIComponent(addressQuery);
+      const url = `https://api.vworld.kr/req/address?service=address&request=getcoord&version=2.0&crs=epsg:4326&address=${encodedAddress}&refine=true&simple=false&format=json&type=road&key=${apiKey}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (
+        data.response?.status === "OK" &&
+        data.response?.result?.point?.x &&
+        data.response?.result?.point?.y
+      ) {
+        const lng = parseFloat(data.response.result.point.x);
+        const lat = parseFloat(data.response.result.point.y);
+
+        // 위도/경도 필드에 자동 입력
+        setLongitude(lng.toString());
+        setLatitude(lat.toString());
+
+        // 바로 지역 검색 실행
+        searchByCoordinates(lng, lat);
+      } else {
+        alert("주소를 찾을 수 없습니다. 정확한 도로명 주소를 입력해주세요.");
+      }
+    } catch (error) {
+      console.error("Geocoding 오류:", error);
+      alert("주소 검색 중 오류가 발생했습니다.");
+    } finally {
+      setIsLoadingAddress(false);
+    }
+  };
+
+  // 좌표로 지역 검색하는 공통 함수
+  const searchByCoordinates = (lng: number, lat: number) => {
+    // 한국 영역 범위 확인 (대략)
+    if (lat < 33 || lat > 39 || lng < 124 || lng > 132) {
+      alert("입력한 좌표가 대한민국 영역을 벗어났습니다.");
+      return;
+    }
+
+    const region = findRegionByCoordinates(lng, lat);
+
+    if (region) {
+      setSelectedRegion(region);
+      alert(
+        `찾은 지역:\n광역시/도: ${region.sidonm}\n시군구: ${region.sggnm}\n읍면동: ${region.adm_nm}`
+      );
+
+      // MapboxMap으로 이벤트 전달
+      window.dispatchEvent(
+        new CustomEvent("highlightRegion", {
+          detail: {
+            coordinates: [lng, lat],
+            region: region,
+          },
+        })
+      );
+    } else {
+      alert("해당 좌표에서 지역을 찾을 수 없습니다.");
+      setSelectedRegion(null);
+    }
+  };
+
+  // 좌표 조회 버튼 클릭 핸들러
+  const handleSearchByCoords = () => {
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+
+    if (isNaN(lat) || isNaN(lng)) {
+      alert("올바른 위도와 경도를 입력해주세요.");
+      return;
+    }
+
+    searchByCoordinates(lng, lat);
+  };
+
+  // 주소 조회 버튼 클릭 핸들러
+  const handleSearchByAddress = () => {
+    if (!address.trim()) {
+      alert("도로명 주소를 입력해주세요.");
+      return;
+    }
+
+    geocodeAddress(address);
+  };
 
   return (
     <div className="min-h-screen bg-[#1e293b] text-white">
@@ -85,24 +258,94 @@ export default function Page() {
 
           {/* 중앙 지도 영역 */}
           <div className="col-span-6 flex flex-col gap-4">
-            {/* 지역 선택 필터 */}
-            <div className="bg-[#0f172a] rounded-lg p-3 border border-gray-700">
-              <div className="flex gap-4 items-center text-sm">
-                <select className="bg-[#1e293b] border border-gray-600 rounded px-3 py-1.5">
-                  <option>전국</option>
-                  <option>서울특별시</option>
-                  <option>경기도</option>
-                </select>
-                <select className="bg-[#1e293b] border border-gray-600 rounded px-3 py-1.5">
-                  <option>시군구</option>
-                </select>
-                <select className="bg-[#1e293b] border border-gray-600 rounded px-3 py-1.5">
-                  <option>읍면동</option>
-                </select>
-                <button className="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded">
-                  조회
+            {/* 검색 필터 영역 */}
+            <div className="bg-[#0f172a] rounded-lg p-4 border border-gray-700 space-y-3">
+              {/* 좌표 입력 */}
+              <div className="flex gap-3 items-center text-sm">
+                <div className="flex items-center gap-2">
+                  <label className="text-gray-300 font-medium min-w-[50px]">
+                    위도:
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    placeholder="예: 37.5665"
+                    value={latitude}
+                    onChange={(e) => setLatitude(e.target.value)}
+                    className="bg-[#1e293b] border border-gray-600 rounded px-3 py-1.5 w-32 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-gray-300 font-medium min-w-[50px]">
+                    경도:
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    placeholder="예: 126.9780"
+                    value={longitude}
+                    onChange={(e) => setLongitude(e.target.value)}
+                    className="bg-[#1e293b] border border-gray-600 rounded px-3 py-1.5 w-32 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handleSearchByCoords}
+                  className="bg-blue-600 hover:bg-blue-700 px-6 py-1.5 rounded font-medium transition-colors"
+                >
+                  좌표 조회
                 </button>
               </div>
+
+              {/* 구분선 */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-600"></div>
+                <span className="text-xs text-gray-400">또는</span>
+                <div className="flex-1 h-px bg-gray-600"></div>
+              </div>
+
+              {/* 도로명 주소 입력 */}
+              <div className="flex gap-3 items-center text-sm">
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="text-gray-300 font-medium min-w-[50px]">
+                    주소:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="예: 서울특별시 중구 세종대로 110"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") {
+                        handleSearchByAddress();
+                      }
+                    }}
+                    className="bg-[#1e293b] border border-gray-600 rounded px-3 py-1.5 flex-1 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handleSearchByAddress}
+                  disabled={isLoadingAddress}
+                  className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-6 py-1.5 rounded font-medium transition-colors min-w-[90px]"
+                >
+                  {isLoadingAddress ? "검색 중..." : "주소 조회"}
+                </button>
+              </div>
+
+              {/* 검색 결과 표시 */}
+              {selectedRegion && (
+                <div className="text-xs bg-[#1e293b] border border-green-500 rounded px-4 py-2">
+                  <span className="text-gray-400">검색 결과: </span>
+                  <span className="text-green-400 font-bold">
+                    {selectedRegion.sidonm}
+                  </span>
+                  {" > "}
+                  <span className="text-blue-400">
+                    {selectedRegion.sggnm}
+                  </span>
+                  {" > "}
+                  <span className="text-gray-300">{selectedRegion.adm_nm}</span>
+                </div>
+              )}
             </div>
 
             {/* 지도 */}

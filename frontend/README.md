@@ -13,10 +13,27 @@ cd <project-name>
 npm install
 ```
 
-## 3. 환경변수 설정 (필요시)
+## 3. 환경변수 설정
 
-.env.example을 복사하여 .env.local 생성
-cp .env.example .env.local
+`.env` 파일에 다음 API 키들을 설정해주세요:
+
+```env
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+NEXT_PUBLIC_MAPBOX_TOKEN=your_mapbox_token
+NEXT_PUBLIC_VWORLD_API_KEY=your_vworld_api_key
+```
+
+### API 키 발급 방법
+
+#### Mapbox Token (필수)
+1. [Mapbox 회원가입](https://account.mapbox.com/auth/signup/)
+2. Dashboard에서 Access Token 복사
+3. `.env` 파일의 `NEXT_PUBLIC_MAPBOX_TOKEN`에 입력
+
+#### Vworld API Key (도로명 주소 검색 기능 사용 시 필수)
+1. [브이월드 포털](https://www.vworld.kr) 회원가입
+2. 오픈API > API 신청 > 지오코딩 API 신청
+3. 발급받은 키를 `.env` 파일의 `NEXT_PUBLIC_VWORLD_API_KEY`에 입력
 
 ## 4. 개발 서버 실행
 
@@ -58,6 +75,48 @@ http://localhost:3000
 - `GeoJSON`: 행정구역 경계 렌더링
 - `FitBounds`: 지도 범위 자동 조정
 
+---
+
+## 주요 기능
+
+### 1. 위도/경도 직접 입력
+- 정확한 위도와 경도 좌표를 입력하여 해당 지역 검색
+- 자동으로 광역시/도, 시군구, 읍면동 매칭
+- 지도에서 해당 지역 하이라이트 및 줌인
+
+### 2. 도로명 주소 검색
+- 도로명 주소를 입력하면 자동으로 위도/경도 변환 (Vworld Geocoding API 사용)
+- 변환된 좌표로 지역 자동 검색
+- 엔터키로 빠른 검색 가능
+
+### 3. 인터랙티브 지도
+- **Mapbox GL** 기반 3D 지도
+- 한국 행정구역 GeoJSON 시각화
+- 지역 클릭 시 줌인 및 상세정보 팝업
+- 데이터센터 위치 마커 표시
+
+### 4. Point-in-Polygon 역지오코딩
+- Ray Casting 알고리즘으로 좌표가 속한 행정구역 자동 탐색
+- Polygon 및 MultiPolygon 지원
+
+---
+
+## 사용 예시
+
+### 좌표 검색 예시
+| 위치 | 위도 | 경도 |
+|------|------|------|
+| 서울 시청 | 37.5665 | 126.9780 |
+| 부산 해운대 | 35.1585 | 129.1603 |
+| 제주 한라산 | 33.3617 | 126.5292 |
+
+### 주소 검색 예시
+- `서울특별시 중구 세종대로 110` (서울시청)
+- `부산광역시 해운대구 중동` (해운대)
+- `제주특별자치도 제주시 1100로` (한라산)
+
+---
+
 #### 환경변수 설정
 
-`.env.local` 파일에 Mapbox 토큰 추가 필요:
+`.env` 파일에 다음 토큰들이 설정되어 있어야 합니다:
