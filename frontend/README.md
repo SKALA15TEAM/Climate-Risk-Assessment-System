@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 프로젝트 실행 가이드
 
-## Getting Started
+## 1. 클론
 
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+git clone <repository-url>
+cd <project-name>
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 2. 패키지 설치
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+npm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 3. 환경변수 설정 (필요시)
 
-## Learn More
+.env.example을 복사하여 .env.local 생성
+cp .env.example .env.local
 
-To learn more about Next.js, take a look at the following resources:
+## 4. 개발 서버 실행
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+npm run dev
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 5. 브라우저 접속
 
-## Deploy on Vercel
+http://localhost:3000
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 📍 Map 컴포넌트 구성
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+#### 사용 라이브러리
+
+- **react-leaflet**: React용 Leaflet 지도 라이브러리
+- **leaflet**: 오픈소스 인터랙티브 지도 라이브러리
+
+#### 주요 기능
+
+1. **한국 행정구역 시각화**: GeoJSON 데이터를 활용한 시도/시군구/행정동 표시
+2. **시도별 색상 구분**: 17개 시도를 각각 다른 색상으로 표시
+3. **인터랙티브 기능**:
+   - 마우스 오버 시 영역 하이라이트
+   - 클릭 시 해당 영역으로 줌인 및 상세정보 팝업
+   - 스크롤 줌, 드래그 이동 지원
+
+#### 데이터 구조
+
+- **입력 데이터**: GeoJSON 형식
+- **필수 속성**:
+  - `sidonm`: 시도명 (예: "서울특별시")
+  - `sggnm`: 시군구명
+  - `adm_nm`: 행정동명
+  - `adm_cd`: 행정동코드
+
+#### 주요 컴포넌트
+
+- `MapContainer`: 지도 컨테이너 (중심: 36.5°N, 127.5°E, 초기 줌: 7)
+- `TileLayer`: Mapbox 타일 레이어 (streets-v12 스타일)
+- `GeoJSON`: 행정구역 경계 렌더링
+- `FitBounds`: 지도 범위 자동 조정
+
+#### 환경변수 설정
+
+`.env.local` 파일에 Mapbox 토큰 추가 필요:
