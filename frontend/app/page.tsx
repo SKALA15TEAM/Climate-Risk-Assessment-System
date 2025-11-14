@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import MapboxMap from "./components/MapboxMap";
 
 // Map 컴포넌트를 동적으로 로드 (SSR 방지)
 const Map = dynamic(() => import("./Map"), { ssr: false });
@@ -107,7 +108,7 @@ export default function Page() {
             {/* 지도 */}
             <div className="bg-[#0f172a] rounded-lg border border-gray-700 flex-1 overflow-hidden">
               {geoJson ? (
-                <Map geoJson={geoJson} />
+                <MapboxMap geoJson={geoJson} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-500">
                   지도 로딩 중...
