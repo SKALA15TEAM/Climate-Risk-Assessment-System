@@ -1,0 +1,20 @@
+# Python
+*.pyc
+__pycache__/
+
+# Env
+.env
+
+# venv
+venv/
+.venv/
+
+# Node
+node_modules/
+
+# Mac metadata
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
