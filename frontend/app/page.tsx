@@ -104,34 +104,67 @@ export default function Page() {
   const geocodeAddress = async (addressQuery: string) => {
     setIsLoadingAddress(true);
     try {
-      // Vworld Geocoding API 사용 (무료)
-      const apiKey = process.env.NEXT_PUBLIC_VWORLD_API_KEY || "YOUR_API_KEY";
+      console.log("🔍 주소 검색 요청:", addressQuery);
+
+      // Next.js API Route를 통해 서버에서 Geocoding 수행 (CORS 문제 해결)
       const encodedAddress = encodeURIComponent(addressQuery);
-      const url = `https://api.vworld.kr/req/address?service=address&request=getcoord&version=2.0&crs=epsg:4326&address=${encodedAddress}&refine=true&simple=false&format=json&type=road&key=${apiKey}`;
+      const url = `/api/geocode?address=${encodedAddress}`;
+
+      console.log("🌐 API URL:", url);
 
       const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`HTTP 오류: ${response.status} ${response.statusText}`);
+      }
+
       const data = await response.json();
+      console.log("📦 API 응답 데이터:", data);
 
-      if (
-        data.response?.status === "OK" &&
-        data.response?.result?.point?.x &&
-        data.response?.result?.point?.y
-      ) {
-        const lng = parseFloat(data.response.result.point.x);
-        const lat = parseFloat(data.response.result.point.y);
+      // API 응답 구조 확인
+      if (data.response?.status === "OK") {
+        // 결과가 있는지 확인
+        if (data.response.result && data.response.result.point) {
+          const lng = parseFloat(data.response.result.point.x);
+          const lat = parseFloat(data.response.result.point.y);
 
-        // 위도/경도 필드에 자동 입력
-        setLongitude(lng.toString());
-        setLatitude(lat.toString());
+          console.log("✅ 좌표 변환 성공:", { lat, lng });
 
-        // 바로 지역 검색 실행
-        searchByCoordinates(lng, lat);
+          // 위도/경도 필드에 자동 입력
+          setLongitude(lng.toString());
+          setLatitude(lat.toString());
+
+          // 바로 지역 검색 실행
+          searchByCoordinates(lng, lat);
+        } else {
+          console.error("❌ 결과 없음:", data.response);
+          alert(
+            `주소를 찾을 수 없습니다.\n입력: ${addressQuery}\n\n확인사항:\n1. 정확한 도로명 주소를 입력하셨나요?\n2. 예: 경기도 구리시 체육관로 124`
+          );
+        }
+      } else if (data.response?.status === "NOT_FOUND") {
+        alert(
+          `주소를 찾을 수 없습니다.\n입력: ${addressQuery}\n\nVworld API에서 해당 주소를 찾지 못했습니다.\n도로명 주소 형식을 확인해주세요.`
+        );
+      } else if (data.response?.status === "ERROR") {
+        const errorMsg = data.response?.error?.text || "알 수 없는 오류";
+        alert(`API 오류: ${errorMsg}\n\nAPI 키가 올바른지 확인해주세요.`);
       } else {
-        alert("주소를 찾을 수 없습니다. 정확한 도로명 주소를 입력해주세요.");
+        console.error("❌ 예상치 못한 응답:", data);
+        alert(
+          `예상치 못한 응답입니다.\nAPI 응답 상태: ${data.response?.status || "UNKNOWN"}`
+        );
       }
     } catch (error) {
-      console.error("Geocoding 오류:", error);
-      alert("주소 검색 중 오류가 발생했습니다.");
+      console.error("❌ Geocoding 오류:", error);
+
+      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+        alert(
+          "네트워크 오류가 발생했습니다.\n\n원인:\n1. CORS 정책 위반\n2. 인터넷 연결 문제\n3. API 서버 문제\n\n브라우저 콘솔(F12)에서 자세한 오류를 확인하세요."
+        );
+      } else {
+        alert(`주소 검색 중 오류가 발생했습니다.\n\n오류: ${error instanceof Error ? error.message : String(error)}`);
+      }
     } finally {
       setIsLoadingAddress(false);
     }
